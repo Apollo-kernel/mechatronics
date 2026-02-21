@@ -1,0 +1,18 @@
+02/15/2026
+H7_0.0.1_Clion
+Led blink
+HAL_GPIO_TogglePin of HAL_GPIO_TogglePin, Power_OUT1_EN_GPIO_Port and Power_OUT1_EN_GPIO_Port
+
+02/17/2026
+H7_0.0.2_Clion
+Led blink using FREERTOS CMSIS_V1 software timer
+enable user timer, enable fpu, enable USE_NEWLIB_REENTRANT, disable use FW pack heap file
+osTimerStart(myTimer01Handle,2000);
+HAL_GPIO_TogglePin of HAL_GPIO_TogglePin, Power_OUT1_EN_GPIO_Port and Power_OUT1_EN_GPIO_Port
+
+H7_0.0.6_Clion
+pure WS2812 SPI non-DMA
+
+
+
+

@@ -1,0 +1,4 @@
+02/15/2026
+H7_0.0.1_Clion
+Led blink - HAL_GPIO_TogglePin of HAL_GPIO_TogglePin, Power_OUT1_EN_GPIO_Port and Power_OUT1_EN_GPIO_Port
+
