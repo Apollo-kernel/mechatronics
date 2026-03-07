@@ -57,6 +57,12 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define Power_OUT2_EN_Pin GPIO_PIN_13
+#define Power_OUT2_EN_GPIO_Port GPIOC
+#define Power_OUT1_EN_Pin GPIO_PIN_14
+#define Power_OUT1_EN_GPIO_Port GPIOC
+#define Power_5V_EN_Pin GPIO_PIN_15
+#define Power_5V_EN_GPIO_Port GPIOC
 
 /* USER CODE BEGIN Private defines */
 

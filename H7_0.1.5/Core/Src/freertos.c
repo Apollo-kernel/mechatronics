@@ -50,6 +50,7 @@ uint8_t rx1_data[256] = {0};
 uint8_t data_enable[10] = {0x01, 0xA0, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x6F};
 uint8_t data_speed_loop[10] = {0x01, 0xA0, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xE4};
 uint8_t data_30RPM[10] = {0x01, 0x64, 0x01, 0x2C, 0x00, 0x00, 0x00, 0x00, 0x00, 0xA6};
+// uint8_t data_5RPM[10] = {0x01, 0x64, 0x00, 0x32, 0x00, 0x00, 0x00, 0x00, 0x00, 0xA6};
 // +10 RPM  (10RPM -> 100 -> 0x0064)
 uint8_t data_10RPM_CW[10]   = {0x01, 0x64, 0x00, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x4F};
 
@@ -185,14 +186,14 @@ void StartDefaultTask(void const * argument)
   for(;;)
   {
     HAL_UART_Transmit_DMA(&huart10, data_enable, sizeof(data_enable));
-    // HAL_UART_Transmit_DMA(&huart1, data_enable, sizeof(data_enable));
+    HAL_UART_Transmit_DMA(&huart1, data_enable, sizeof(data_enable));
     osDelay((100));
     HAL_UART_Transmit_DMA(&huart10, data_speed_loop, sizeof(data_speed_loop));
-    // HAL_UART_Transmit_DMA(&huart1, data_speed_loop, sizeof(data_speed_loop));
-    osDelay((100));
+    HAL_UART_Transmit_DMA(&huart1, data_speed_loop, sizeof(data_speed_loop));
+    osDelay((1000));
     HAL_UART_Transmit_DMA(&huart10, data_30RPM, sizeof(data_30RPM));
-    // HAL_UART_Transmit_DMA(&huart1, data_30RPM, sizeof(data_30RPM));
-     osDelay((1000));
+    HAL_UART_Transmit_DMA(&huart1, data_30RPM, sizeof(data_30RPM));
+    osDelay((1000));
 
     HAL_UART_Transmit_DMA(&huart10, data_30RPM_CCW, sizeof(data_30RPM_CCW));
     osDelay((1000));
@@ -200,6 +201,24 @@ void StartDefaultTask(void const * argument)
     HAL_UART_Transmit_DMA(&huart10, data_10RPM_CW, sizeof(data_10RPM_CW));
     osDelay((1000));
     HAL_UART_Transmit_DMA(&huart10, data_10RPM_CCW, sizeof(data_10RPM_CCW));
+    osDelay((3000));
+
+    HAL_UART_Transmit_DMA(&huart7, data_enable, sizeof(data_enable));
+    HAL_UART_Transmit_DMA(&huart1, data_enable, sizeof(data_enable));
+    osDelay((100));
+    HAL_UART_Transmit_DMA(&huart7, data_speed_loop, sizeof(data_speed_loop));
+    HAL_UART_Transmit_DMA(&huart1, data_speed_loop, sizeof(data_speed_loop));
+    osDelay((1000));
+    HAL_UART_Transmit_DMA(&huart7, data_30RPM, sizeof(data_30RPM));
+    HAL_UART_Transmit_DMA(&huart1, data_30RPM, sizeof(data_30RPM));
+    osDelay((1000));
+
+    HAL_UART_Transmit_DMA(&huart7, data_30RPM_CCW, sizeof(data_30RPM_CCW));
+    osDelay((1000));
+
+    HAL_UART_Transmit_DMA(&huart7, data_10RPM_CW, sizeof(data_10RPM_CW));
+    osDelay((1000));
+    HAL_UART_Transmit_DMA(&huart7, data_10RPM_CCW, sizeof(data_10RPM_CCW));
     osDelay((3000));
 
     osDelay(1);

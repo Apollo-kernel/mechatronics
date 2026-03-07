@@ -47,22 +47,49 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+/* Motor command packets (M0603A protocol, 10 bytes) - same as H7_0.1.5 */
+static const uint8_t data_enable[10]      = {0x01, 0xA0, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x6F};
+static const uint8_t data_speed_loop[10]  = {0x01, 0xA0, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xE4};
+static const uint8_t data_30RPM[10]       = {0x01, 0x64, 0x01, 0x2C, 0x00, 0x00, 0x00, 0x00, 0x00, 0xA6};
+static const uint8_t data_10RPM_CW[10]    = {0x01, 0x64, 0x00, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x4F};
+static const uint8_t data_10RPM_CCW[10]   = {0x01, 0x64, 0xFF, 0x9C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x9A};
+static const uint8_t data_30RPM_CCW[10]   = {0x01, 0x64, 0xFE, 0xD4, 0x00, 0x00, 0x00, 0x00, 0x00, 0x73};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-
+static void send_vbus(void);
+static void delay_ms_with_vbus(uint32_t ms);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 uint16_t adc_val[2];
-float vbus;
-
-uint8_t uart_tx_buf[64];
 volatile uint8_t uart1_tx_busy = 0;
+
+static void send_vbus(void)
+{
+  char txbuf[64];
+  float v = (adc_val[0] * 3.3f / 65535.0f) * 11.0f;
+  int len = snprintf(txbuf, sizeof(txbuf), "vbus=%.3f V\r\n", v);
+  HAL_UART_Transmit(&huart1, (uint8_t*)txbuf, (uint32_t)len, 0xFFFF);
+}
+
+/* Delay ms while sending Vbus every 100 ms on USART1 */
+static void delay_ms_with_vbus(uint32_t ms)
+{
+  while (ms >= 100u)
+  {
+    send_vbus();
+    HAL_Delay(100);
+    ms -= 100u;
+  }
+  if (ms > 0u)
+  {
+    HAL_Delay(ms);
+  }
+}
 /* USER CODE END 0 */
 
 /**
@@ -96,21 +123,49 @@ int main(void)
   MX_DMA_Init();
   MX_ADC1_Init();
   MX_USART1_UART_Init();
+  MX_UART7_Init();
+  MX_USART10_UART_Init();
   /* USER CODE BEGIN 2 */
   HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED);
-  HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_val,2);
+  HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_val, 2u);
+  /* Power enable toggles (same as H7_0.1.5) */
+  HAL_GPIO_TogglePin(Power_5V_EN_GPIO_Port, Power_5V_EN_Pin);
+  HAL_GPIO_TogglePin(Power_OUT2_EN_GPIO_Port, Power_OUT2_EN_Pin);
+  HAL_GPIO_TogglePin(Power_OUT1_EN_GPIO_Port, Power_OUT1_EN_Pin);
+  HAL_Delay(3000);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    char txbuf[64];
-    float vbus = (adc_val[0] * 3.3f / 65535.0f) * 11.0f;
+    /* --- Motor sequence on USART10 (first motor); USART1 reserved for Vbus --- */
+    HAL_UART_Transmit_DMA(&huart10, (uint8_t*)data_enable, 10u);
+    delay_ms_with_vbus(100u);
+    HAL_UART_Transmit_DMA(&huart10, (uint8_t*)data_speed_loop, 10u);
+    delay_ms_with_vbus(1000u);
+    HAL_UART_Transmit_DMA(&huart10, (uint8_t*)data_30RPM, 10u);
+    delay_ms_with_vbus(1000u);
+    HAL_UART_Transmit_DMA(&huart10, (uint8_t*)data_30RPM_CCW, 10u);
+    delay_ms_with_vbus(1000u);
+    HAL_UART_Transmit_DMA(&huart10, (uint8_t*)data_10RPM_CW, 10u);
+    delay_ms_with_vbus(1000u);
+    HAL_UART_Transmit_DMA(&huart10, (uint8_t*)data_10RPM_CCW, 10u);
+    delay_ms_with_vbus(3000u);
 
-    int len = snprintf(txbuf, sizeof(txbuf), "vbus=%.3f V\r\n", vbus);
-    HAL_UART_Transmit(&huart1, (uint8_t*)txbuf, len, 0xFFFF);
-    HAL_Delay(100);
+    /* --- Motor sequence on UART7 (second motor) --- */
+    HAL_UART_Transmit_DMA(&huart7, (uint8_t*)data_enable, 10u);
+    delay_ms_with_vbus(100u);
+    HAL_UART_Transmit_DMA(&huart7, (uint8_t*)data_speed_loop, 10u);
+    delay_ms_with_vbus(1000u);
+    HAL_UART_Transmit_DMA(&huart7, (uint8_t*)data_30RPM, 10u);
+    delay_ms_with_vbus(1000u);
+    HAL_UART_Transmit_DMA(&huart7, (uint8_t*)data_30RPM_CCW, 10u);
+    delay_ms_with_vbus(1000u);
+    HAL_UART_Transmit_DMA(&huart7, (uint8_t*)data_10RPM_CW, 10u);
+    delay_ms_with_vbus(1000u);
+    HAL_UART_Transmit_DMA(&huart7, (uint8_t*)data_10RPM_CCW, 10u);
+    delay_ms_with_vbus(3000u);
 
     /* USER CODE END WHILE */
 
