@@ -19,7 +19,9 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "adc.h"
+#include "bdma.h"
 #include "dma.h"
+#include "spi.h"
 #include "usart.h"
 #include "gpio.h"
 
@@ -27,6 +29,7 @@
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 #include <string.h>
+#include "ws2812.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -47,6 +50,9 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+/* UART RX buffer for WS2812 RGB commands (R0/R1, G0/G1, B0/B1) and echo */
+uint8_t rx_data[256] = {0};
+uint8_t ws2812_r = 0, ws2812_g = 0, ws2812_b = 0;
 /* Motor command packets (M0603A protocol, 10 bytes) - same as H7_0.1.5 */
 static const uint8_t data_enable[10]      = {0x01, 0xA0, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x6F};
 static const uint8_t data_speed_loop[10]  = {0x01, 0xA0, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xE4};
@@ -120,14 +126,19 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_BDMA_Init();
   MX_DMA_Init();
   MX_ADC1_Init();
+  MX_SPI6_Init();
   MX_USART1_UART_Init();
   MX_UART7_Init();
   MX_USART10_UART_Init();
   /* USER CODE BEGIN 2 */
   HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED);
   HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_val, 2u);
+  /* UART1: start receive for WS2812 commands (R0/R1, G0/G1, B0/B1) and echo */
+  HAL_UARTEx_ReceiveToIdle_DMA(&huart1, rx_data, sizeof(rx_data));
+  __HAL_DMA_DISABLE_IT(huart1.hdmarx, DMA_IT_HT);
   /* Power enable toggles (same as H7_0.1.5) */
   HAL_GPIO_TogglePin(Power_5V_EN_GPIO_Port, Power_5V_EN_Pin);
   HAL_GPIO_TogglePin(Power_OUT2_EN_GPIO_Port, Power_OUT2_EN_Pin);
@@ -139,6 +150,16 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+    /* Parse USART1 RX for WS2812 RGB commands (R0/R1, G0/G1, B0/B1) and update LED */
+    if (rx_data[0] == 'R') {
+      ws2812_r = (rx_data[1] == '0') ? 0 : 15;
+    } else if (rx_data[0] == 'G') {
+      ws2812_g = (rx_data[1] == '0') ? 0 : 15;
+    } else if (rx_data[0] == 'B') {
+      ws2812_b = (rx_data[1] == '0') ? 0 : 15;
+    }
+    WS2812_Ctrl(0, 255, 0);
+
     /* --- Motor sequence on USART10 (first motor); USART1 reserved for Vbus --- */
     HAL_UART_Transmit_DMA(&huart10, (uint8_t*)data_enable, 10u);
     delay_ms_with_vbus(100u);
@@ -249,6 +270,16 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
   }
 }
 
+/* Echo received bytes on USART1 and re-arm ReceiveToIdle (WS2812 command link) */
+void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
+{
+  if (huart->Instance == USART1)
+  {
+    HAL_UART_Transmit_DMA(&huart1, rx_data, Size);
+    HAL_UARTEx_ReceiveToIdle_DMA(&huart1, rx_data, sizeof(rx_data));
+    __HAL_DMA_DISABLE_IT(huart1.hdmarx, DMA_IT_HT);
+  }
+}
 
 /* USER CODE END 4 */
 

@@ -115,64 +115,64 @@ int main(void) {
         // HAL_UART_Transmit(&huart1, (uint8_t *) message, strlen(message), 100);
 
 
-        HAL_UART_Receive(&huart1, rx_data, 2, HAL_MAX_DELAY);
-        if (rx_data[0] == 'R') {
-            if (rx_data[1] == '0') {
-                r = 0;
-            } else {
-                r = 15;
-            }
-        } else if (rx_data[0] == 'G') {
-            if (rx_data[1] == '0') {
-                g = 0;
-            } else {
-                g = 15;
-            }
-        } else if (rx_data[0] == 'B') {
-            if (rx_data[1] == '0') {
-                b = 0;
-            } else {
-                b = 15;
-            }
-        }
-        // 将收到的数据返回
-        WS2812_Ctrl(r, g, b);
-        HAL_UART_Transmit(&huart1, rx_data, 2, HAL_MAX_DELAY);
+        // HAL_UART_Receive(&huart1, rx_data, 2, HAL_MAX_DELAY);
+        // if (rx_data[0] == 'R') {
+        //     if (rx_data[1] == '0') {
+        //         r = 0;
+        //     } else {
+        //         r = 15;
+        //     }
+        // } else if (rx_data[0] == 'G') {
+        //     if (rx_data[1] == '0') {
+        //         g = 0;
+        //     } else {
+        //         g = 15;
+        //     }
+        // } else if (rx_data[0] == 'B') {
+        //     if (rx_data[1] == '0') {
+        //         b = 0;
+        //     } else {
+        //         b = 15;
+        //     }
+        // }
+        // // 将收到的数据返回
+        // WS2812_Ctrl(r, g, b);
+        // HAL_UART_Transmit(&huart1, rx_data, 2, HAL_MAX_DELAY);
 
 
         /* USER CODE END WHILE */
 
         /* USER CODE BEGIN 3 */
-        // r = 255;
-        // g = 0;
-        // b = 0;
-        // WS2812_Ctrl(r, g, b);
-        // HAL_Delay(200);
-        // r = 255;
-        // g = 255;
-        // b = 0;
-        // WS2812_Ctrl(r, g, b);
-        // HAL_Delay(200);
-        // r = 0;
-        // g = 255;
-        // b = 0;
-        // WS2812_Ctrl(r, g, b);
-        // HAL_Delay(200);
-        // r = 0;
-        // g = 255;
-        // b = 255;
-        // WS2812_Ctrl(r, g, b);
-        // HAL_Delay(200);
-        // r = 0;
-        // g = 0;
-        // b = 255;
-        // WS2812_Ctrl(r, g, b);
-        // HAL_Delay(200);
-        // r = 255;
-        // g = 0;
-        // b = 255;
-        // WS2812_Ctrl(r, g, b);
-        // HAL_Delay(200);
+        r = 255;
+        g = 0;
+        b = 0;
+        WS2812_Ctrl(r, g, b);
+        HAL_Delay(200);
+        r = 255;
+        g = 255;
+        b = 0;
+        WS2812_Ctrl(r, g, b);
+        HAL_Delay(200);
+        r = 0;
+        g = 255;
+        b = 0;
+        WS2812_Ctrl(r, g, b);
+        HAL_Delay(200);
+        r = 0;
+        g = 255;
+        b = 255;
+        WS2812_Ctrl(r, g, b);
+        HAL_Delay(200);
+        r = 0;
+        g = 0;
+        b = 255;
+        WS2812_Ctrl(r, g, b);
+        HAL_Delay(200);
+        r = 255;
+        g = 0;
+        b = 255;
+        WS2812_Ctrl(r, g, b);
+        HAL_Delay(200);
     }
     /* USER CODE END 3 */
 }
