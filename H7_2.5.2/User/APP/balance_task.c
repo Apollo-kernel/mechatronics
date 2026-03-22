@@ -33,7 +33,7 @@
 #define BALANCE_STOP_RAD           0.60f     /* 倾角过大直接停机并清积分 */
 
 #define BALANCE_OPEN_MIN           4000
-#define BALANCE_OPEN_MAX           50000        //40000
+#define BALANCE_OPEN_MAX           32767        //32767
 #define OPEN_ZERO_THRESH           300.0f    /* 最终命令小于该值直接置 0 */
 
 
