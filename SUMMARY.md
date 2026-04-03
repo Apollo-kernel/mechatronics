@@ -1,6 +1,6 @@
 # Table of contents
 
-* [A Two-Wheeled Self-Balancing Robot on STM32](README.md)
+* [Two-Wheeled Self-Balancing Robot](README.md)
 * [Page 2](page-2.md)
 
 ## Group 1
