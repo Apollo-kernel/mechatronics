@@ -1,6 +1,6 @@
 # Two-Wheeled Self-Balancing Robot
 
-<figure><img src=".gitbook/assets/image.png" alt=""><figcaption></figcaption></figure>
+<figure><img src=".gitbook/assets/IMG_3294.JPG" alt=""><figcaption><p>Physical prototype (left) and CAD model (right) of the two-wheeled self-balancing robot.</p></figcaption></figure>
 
 ## Summary
 
@@ -120,7 +120,10 @@ Add links here so recruiters can verify the robot quickly:
 
 * Demo video: \[add link]
 * Project page / website: [https://agile-navigator.gitbook.io/docs](https://agile-navigator.gitbook.io/docs)
-* Photos: \[add link]
+
+<figure><img src=".gitbook/assets/IMG_3295.JPG" alt=""><figcaption></figcaption></figure>
+
+<figure><img src=".gitbook/assets/IMG_3296 (1).JPG" alt=""><figcaption></figcaption></figure>
 
 ### If you are reviewing this for robotics experience
 
