@@ -1,4 +1,4 @@
-# Two-Wheeled Self-Balancing Robot on STM32
+# Two-Wheeled Self-Balancing Robot
 
 ## Summary
 
@@ -117,8 +117,7 @@ Some of the important engineering work in this project included:
 Add links here so recruiters can verify the robot quickly:
 
 * Demo video: \[add link]
-* Project page / website: \[add link]
-* Resume: \[add link]
+* Project page / website: [https://agile-navigator.gitbook.io/docs](https://agile-navigator.gitbook.io/docs)
 * Photos: \[add link]
 
 ### If you are reviewing this for robotics experience
