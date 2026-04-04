@@ -1,5 +1,7 @@
 # Two-Wheeled Self-Balancing Robot
 
+<figure><img src=".gitbook/assets/image.png" alt=""><figcaption></figcaption></figure>
+
 ## Summary
 
 This repository documents my work on a two-wheeled self-balancing robot built on an STM32H7-based control platform.
