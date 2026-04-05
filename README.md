@@ -13,6 +13,7 @@ Built and documented by **Yuyang Huang**
 
 ### Quick Links
 
+* **Demo video:** [https://vimeo.com/1180182469](https://vimeo.com/1180182469)
 * **Repository:** [https://github.com/Apollo-kernel/mechatronics](https://github.com/Apollo-kernel/mechatronics)
 * **Project Docs:** [https://agile-navigator.gitbook.io/docs](https://agile-navigator.gitbook.io/docs)
 
@@ -132,7 +133,6 @@ Some of the important engineering work in this project included:
 
 Lare added here so recruiters can verify the robot quickly:
 
-* Repository: [https://github.com/Apollo-kernel/mechatronics](https://github.com/Apollo-kernel/mechatronics)
 * Demo video: [https://vimeo.com/1180182469](https://vimeo.com/1180182469)
 * Project page / website: [https://agile-navigator.gitbook.io/docs](https://agile-navigator.gitbook.io/docs)
 
