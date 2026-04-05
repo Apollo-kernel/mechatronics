@@ -12,7 +12,6 @@ typedef struct
     float speed_kp;
     float speed_ki;
     float speed_target_d_raw_20ms;
-    float speed_to_balance_limit_rad;
 
     float turn_kp;
     float turn_kd;

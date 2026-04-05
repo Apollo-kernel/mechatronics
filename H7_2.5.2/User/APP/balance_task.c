@@ -57,10 +57,10 @@
 #define TURN_OUT_LIMIT             8000.0f
 #define SPEED_LPF_ALPHA            0.87f         //0.92 //0.87
 static balance_param_t g_balance_param = {
-    .balance_kp = 100000.0f,     //100000
-    .balance_kd = 0.0f,
-    .speed_kp   = 18.0f,        //18
-    .speed_ki   = 0.3f,        //0.45
+    .balance_kp = 9000.0f,
+    .balance_kd = 60.0f,
+    .speed_kp   = 18.0f,
+    .speed_ki   = 0.3f,
     .turn_kp    = 0.0f,
     .turn_kd    = 0.0f,
 };
