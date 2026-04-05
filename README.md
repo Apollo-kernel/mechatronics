@@ -1,6 +1,20 @@
+---
+description: >-
+  Documentation for an STM32H7-based two-wheeled self-balancing robot, covering
+  hardware design, embedded firmware, IMU sensing, motor communication, and
+  real-time balance control.
+---
+
 # Two-Wheeled Self-Balancing Robot
 
+Built and documented by **Yuyang Huang**
+
 <figure><img src=".gitbook/assets/IMG_3294.JPG" alt=""><figcaption><p>Physical prototype (left) and CAD model (right) of the two-wheeled self-balancing robot.</p></figcaption></figure>
+
+### Quick Links
+
+* **Repository:** [https://github.com/Apollo-kernel/mechatronics](https://github.com/Apollo-kernel/mechatronics)
+* **Project Docs:** [https://agile-navigator.gitbook.io/docs](https://agile-navigator.gitbook.io/docs)
 
 ## Summary
 
@@ -118,6 +132,7 @@ Some of the important engineering work in this project included:
 
 Add links here so recruiters can verify the robot quickly:
 
+* Repository: [https://github.com/Apollo-kernel/mechatronics](https://github.com/Apollo-kernel/mechatronics)
 * Demo video: \[add link]
 * Project page / website: [https://agile-navigator.gitbook.io/docs](https://agile-navigator.gitbook.io/docs)
 
