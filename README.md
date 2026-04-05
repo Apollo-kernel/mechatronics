@@ -130,10 +130,10 @@ Some of the important engineering work in this project included:
 
 ### Demo / media
 
-Add links here so recruiters can verify the robot quickly:
+Lare added here so recruiters can verify the robot quickly:
 
 * Repository: [https://github.com/Apollo-kernel/mechatronics](https://github.com/Apollo-kernel/mechatronics)
-* Demo video: \[add link]
+* Demo video: [https://vimeo.com/1180182469](https://vimeo.com/1180182469)
 * Project page / website: [https://agile-navigator.gitbook.io/docs](https://agile-navigator.gitbook.io/docs)
 
 <figure><img src=".gitbook/assets/IMG_3295.JPG" alt=""><figcaption></figcaption></figure>
