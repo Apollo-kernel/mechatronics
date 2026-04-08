@@ -31,6 +31,7 @@
 
 #define BALANCE_DEADBAND_RAD       0.001f    /* pitch 很小时不输出 */
 #define BALANCE_STOP_RAD           0.60f     /* 倾角过大直接停机并清积分 */
+#define BALANCE_PITCH_I_CLAMP      0.22f     /* rad·s cap on upright integral */
 
 /* Lower min reduces bang-bang jerk when speed loop hunts near zero */
 #define BALANCE_OPEN_MIN           2000
@@ -50,7 +51,11 @@
 // #define SPEED_KI                   0.0f
 #define SPEED_TARGET_D_RAW_20MS_LIMIT   2000.0f
 #define SPEED_POS_LIMIT                 40000.0f
-#define SPEED_OUT_LIMIT                 32000.0f
+#define SPEED_OUT_LIMIT                 16000.0f
+/* Bleed chassis_pos_hold_state so encoder bias does not build endless speed-loop reversal */
+#define CHASSIS_POS_HOLD_LEAK           0.9992f
+/* Low-pass speed loop torque added to balance (reduces harsh reversals) */
+#define SPEED_OUT_LPF_ALPHA             0.62f
 
 /* ===================== 转向环：PD ===================== */
 /* 当前没有遥控目标时，默认锁住启动时航向 */
@@ -60,11 +65,12 @@
 /* Match H7_2.5.2: slower LPF on *measured* speed adds phase lag vs position integral — keep responsive */
 #define SPEED_LPF_ALPHA            0.87f
 static balance_param_t g_balance_param = {
-    .balance_kp = 81000.0f,
-    .balance_kd = 0.0f,
+    .balance_kp = 72000.0f,
+    .balance_kd = 520.0f,
+    .balance_ki = 0.0f,
 
-    .speed_kp   = 18.0f,
-    .speed_ki   = 0.2f,
+    .speed_kp   = 11.0f,
+    .speed_ki   = 0.0f,
     .speed_target_d_raw_20ms = 0.0f,
 
     .turn_kp    = 0.0f,
@@ -235,6 +241,9 @@ static uint32_t speed_pos_tick_m10_used = 0u;
 static float yaw_ref_total = 0.0f;
 static uint8_t yaw_ref_valid = 0u;
 
+static float speed_out_lpf = 0.0f;
+static float balance_pitch_int = 0.0f;
+
 
 
 static float g_vofa_ch[VOFA_UART1_CH_NUM] = {0.0f};
@@ -256,6 +265,14 @@ int Balance_ParamSetById(uint8_t id, float value)
             if ((value >= 0.0f) && (value <= 3000.0f))
             {
                 g_balance_param.balance_kd = value;
+                return 1;
+            }
+            break;
+
+        case 8:
+            if ((value >= 0.0f) && (value <= 50000.0f))
+            {
+                g_balance_param.balance_ki = value;
                 return 1;
             }
             break;
@@ -484,6 +501,7 @@ static void balance_cli_print_help(void)
     (void)UART1_LogPrintfDrop("switch from VOFA stream to CLI with: #CLI!\r\n");
     (void)UART1_LogPrintfDrop("in VOFA mode: #BAL=1! / #BAL=0! to enable / disable balance\r\n");
     (void)UART1_LogPrintfDrop("P3/P4 speed loop: same as H7_2.5.2 (parallel torque + integrated position)\r\n");
+    (void)UART1_LogPrintfDrop("P8 upright pitch integral gain (#P8=value!)\r\n");
 }
 
 static void balance_cli_print_map(void)
@@ -507,9 +525,10 @@ static void balance_cli_print_status(void)
         chassis_speed_d_raw_20ms());
 
     (void)UART1_LogPrintfDrop(
-        "P1 bal_kp=%.3f P2 bal_kd=%.3f P3 spd_kp=%.3f P4 spd_ki=%.3f P5 turn_kp=%.3f P6 turn_kd=%.3f P7 spd_tgt=%.1f\r\n",
+        "P1 bal_kp=%.3f P2 bal_kd=%.3f P8 bal_ki=%.3f P3 spd_kp=%.3f P4 spd_ki=%.3f P5 turn_kp=%.3f P6 turn_kd=%.3f P7 spd_tgt=%.1f\r\n",
         g_balance_param.balance_kp,
         g_balance_param.balance_kd,
+        g_balance_param.balance_ki,
         g_balance_param.speed_kp,
         g_balance_param.speed_ki,
         g_balance_param.turn_kp,
@@ -1074,6 +1093,9 @@ static void control_state_reset(void)
 
     yaw_ref_total = 0.0f;
     yaw_ref_valid = 0u;
+
+    speed_out_lpf = 0.0f;
+    balance_pitch_int = 0.0f;
 }
 
 /*
@@ -1103,6 +1125,7 @@ static float speed_loop_calc(float speed_d_raw_20ms, uint8_t reset)
 
     if (chassis_pos_sample_ready())
     {
+        chassis_pos_hold_state *= CHASSIS_POS_HOLD_LEAK;
         chassis_pos_hold_state += speed_lpf_d_raw_20ms;
         chassis_pos_hold_state = clampf_local(chassis_pos_hold_state,
                                               -SPEED_POS_LIMIT,
@@ -2289,21 +2312,36 @@ void Balance_Task(void) {
             osDelay(BALANCE_TASK_PERIOD_MS);
             continue;
         }
-        balance_out = g_balance_param.balance_kp * pitch
-                    - g_balance_param.balance_kd * pitch_gyro;
-
-        if (fabsf(pitch) < BALANCE_DEADBAND_RAD) {
-            balance_out = 0.0f;
+        {
+            const float bal_dt = (float)BALANCE_TASK_PERIOD_MS * 0.001f;
+            if (fabsf(pitch) < (BALANCE_STOP_RAD - 0.08f)) {
+                balance_pitch_int += pitch * bal_dt;
+                balance_pitch_int = clampf_local(balance_pitch_int,
+                                                 -BALANCE_PITCH_I_CLAMP,
+                                                 BALANCE_PITCH_I_CLAMP);
+            }
         }
 
-        speed_out = speed_loop_calc(speed_d_raw_20ms, 0u);
+        {
+            float balance_pd = g_balance_param.balance_kp * pitch
+                             - g_balance_param.balance_kd * pitch_gyro;
+            if (fabsf(pitch) < BALANCE_DEADBAND_RAD) {
+                balance_pd = 0.0f;
+            }
+            balance_out = balance_pd
+                        + g_balance_param.balance_ki * balance_pitch_int;
+        }
+
+        {
+            float speed_raw = speed_loop_calc(speed_d_raw_20ms, 0u);
+            speed_out_lpf = SPEED_OUT_LPF_ALPHA * speed_out_lpf
+                          + (1.0f - SPEED_OUT_LPF_ALPHA) * speed_raw;
+            speed_out = speed_out_lpf;
+        }
 
         /* ===================== 3) 转向环：PD ===================== */
         turn_out = turn_loop_calc(yaw_total, yaw_gyro, 0u);
 
-        /*
-         * Same as H7_2.5.2: upright PD + speed/position PI in parallel on motor command.
-         */
         common_out = balance_out + speed_out;
 
         m10_open = open_from_signed(common_out + turn_out);

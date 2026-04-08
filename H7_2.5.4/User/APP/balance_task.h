@@ -8,6 +8,7 @@ typedef struct
 {
     float balance_kp;
     float balance_kd;
+    float balance_ki;
 
     float speed_kp;
     float speed_ki;
