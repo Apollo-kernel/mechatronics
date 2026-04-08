@@ -64,7 +64,7 @@ static balance_param_t g_balance_param = {
     .balance_kd = 0.0f,
 
     .speed_kp   = 18.0f,
-    .speed_ki   = 0.2f,
+    .speed_ki   = 0.05f,
     .speed_target_d_raw_20ms = 0.0f,
 
     .turn_kp    = 0.0f,
