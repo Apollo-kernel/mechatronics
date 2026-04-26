@@ -242,14 +242,20 @@ static uint32_t speed_pos_tick_m10_used = 0u;
 static float yaw_ref_total = 0.0f;
 static uint8_t yaw_ref_valid = 0u;
 
-#define TRIGGERED_TURN_RATE_DEG_PER_S     20.0f
-#define TRIGGERED_TURN_SETTLE_ERR_DEG     2.0f
-#define TRIGGERED_TURN_SETTLE_ERR_RAD     ((TRIGGERED_TURN_SETTLE_ERR_DEG) * 0.01745329252f)
-#define TRIGGERED_TURN_SETTLE_GYRO_RAD_S  0.15f
-#define TRIGGERED_TURN_TIMEOUT_PAD_MS     1000u
+#define TRIGGERED_TURN_RATE_DEG_PER_S      20.0f
+#define TRIGGERED_TURN_RATE_RAD_PER_S      ((TRIGGERED_TURN_RATE_DEG_PER_S) * 0.01745329252f)
+#define TRIGGERED_TURN_SETTLE_ERR_DEG      2.0f
+#define TRIGGERED_TURN_SETTLE_ERR_RAD      ((TRIGGERED_TURN_SETTLE_ERR_DEG) * 0.01745329252f)
+#define TRIGGERED_TURN_SETTLE_GYRO_RAD_S   0.15f
+#define TRIGGERED_TURN_SETTLE_TIMEOUT_MS   1000u
+#define TRIGGERED_TURN_DT_MAX_S            0.05f
+#define TRIGGERED_TURN_OUT_LIMIT           2500.0f
 
 static uint8_t g_triggered_turn_active = 0u;
+static uint8_t g_triggered_turn_ramping = 0u;
+static uint32_t g_triggered_turn_last_ms = 0u;
 static uint32_t g_triggered_turn_deadline_ms = 0u;
+static float g_triggered_turn_goal = 0.0f;
 
 // Continuous-spin state machine disabled so only the triggered -90 degree turn remains.
 // /* Continuous in-place yaw: reference ramps at fixed rate forever. Translation = 0 while spinning. */
@@ -278,7 +284,7 @@ static volatile uint8_t g_balance_closed_loop_enable = 1u;
 // Set these from your app to control the robot
 float target_speed_x = 0.0f;  // Forward/Backward speed in RPM (e.g., 10 for forward, -10 for backward)
 float target_speed_y = 0.0f;  // Strafe (Not used for 2-wheel differential drive)
-float target_spin_z  = 45.0f;  // Target spin amount in degrees (e.g., 360, -90)
+float target_spin_z  = 90.0f;  // Target spin amount in degrees (e.g., 360, -90)
 
 uint8_t trigger_spin = 1;     // Set to 1 to execute the target_spin_z turn once
 /* --------------------------------------- */
@@ -1165,7 +1171,10 @@ static void control_state_reset(void)
     yaw_ref_total = 0.0f;
     yaw_ref_valid = 0u;
     g_triggered_turn_active = 0u;
+    g_triggered_turn_ramping = 0u;
+    g_triggered_turn_last_ms = 0u;
     g_triggered_turn_deadline_ms = 0u;
+    g_triggered_turn_goal = 0.0f;
 }
 
 static float speed_loop_calc(float speed_d_raw_20ms, uint8_t reset, float speed_target_cmd)
@@ -1242,6 +1251,75 @@ static float turn_loop_calc(float yaw_total, float gyro_z, uint8_t reset) {
     out = g_balance_param.turn_kp * err - g_balance_param.turn_kd * gyro_z;
 
     return clampf_local(out, -TURN_OUT_LIMIT, TURN_OUT_LIMIT);
+}
+
+static void triggered_turn_update(float yaw_total, float yaw_gyro, uint32_t now_ms)
+{
+    if (g_triggered_turn_active == 0u)
+    {
+        return;
+    }
+
+    if (g_triggered_turn_ramping != 0u)
+    {
+        float dt;
+        float remaining;
+        float step;
+
+        if (g_triggered_turn_last_ms == 0u)
+        {
+            dt = (float)BALANCE_TASK_PERIOD_MS * 0.001f;
+        }
+        else
+        {
+            dt = (float)(now_ms - g_triggered_turn_last_ms) * 0.001f;
+        }
+
+        if (dt > TRIGGERED_TURN_DT_MAX_S)
+        {
+            dt = TRIGGERED_TURN_DT_MAX_S;
+        }
+
+        if (dt < 0.001f)
+        {
+            dt = 0.001f;
+        }
+
+        g_triggered_turn_last_ms = now_ms;
+        remaining = g_triggered_turn_goal - yaw_ref_total;
+        step = TRIGGERED_TURN_RATE_RAD_PER_S * dt;
+
+        if (remaining > step)
+        {
+            yaw_ref_total += step;
+        }
+        else if (remaining < -step)
+        {
+            yaw_ref_total -= step;
+        }
+        else
+        {
+            yaw_ref_total = g_triggered_turn_goal;
+            g_triggered_turn_ramping = 0u;
+            g_triggered_turn_deadline_ms = now_ms + TRIGGERED_TURN_SETTLE_TIMEOUT_MS;
+        }
+
+        yaw_ref_valid = 1u;
+        return;
+    }
+
+    yaw_ref_total = g_triggered_turn_goal;
+    yaw_ref_valid = 1u;
+
+    if (((fabsf(g_triggered_turn_goal - yaw_total) <= TRIGGERED_TURN_SETTLE_ERR_RAD) &&
+         (fabsf(yaw_gyro) <= TRIGGERED_TURN_SETTLE_GYRO_RAD_S)) ||
+        ((int32_t)(now_ms - g_triggered_turn_deadline_ms) >= 0))
+    {
+        g_triggered_turn_active = 0u;
+        g_triggered_turn_ramping = 0u;
+        g_triggered_turn_last_ms = 0u;
+        yaw_ref_valid = 0u;
+    }
 }
 
 // Continuous-spin updater disabled so only the triggered -90 degree turn remains.
@@ -2463,19 +2541,21 @@ void Balance_Task(void) {
         /* --- NEW CODE: Triggered Spin (Z) --- */
         if (trigger_spin == 1)
         {
-            // Update the target heading: Current Heading + Target Spin Angle (converted to radians)
-            yaw_ref_total = yaw_total + (target_spin_z * 0.01745329252f);
+            // Start from the current heading and ramp the reference toward the requested turn angle.
+            yaw_ref_total = yaw_total;
             yaw_ref_valid = 1u;
             g_triggered_turn_active = 1u;
-            g_triggered_turn_deadline_ms =
-                now_ms
-                + (uint32_t)((fabsf(target_spin_z) / TRIGGERED_TURN_RATE_DEG_PER_S) * 1000.0f)
-                + TRIGGERED_TURN_TIMEOUT_PAD_MS;
+            g_triggered_turn_ramping = 1u;
+            g_triggered_turn_last_ms = now_ms;
+            g_triggered_turn_deadline_ms = 0u;
+            g_triggered_turn_goal = yaw_total + (target_spin_z * 0.01745329252f);
 
             // Clear the trigger so it only spins exactly once
             trigger_spin = 0;
         }
         /* -------------------------------------------- */
+
+        triggered_turn_update(yaw_total, yaw_gyro, now_ms);
 
         balance_out = g_balance_param.balance_kp * pitch
                     - g_balance_param.balance_kd * pitch_gyro;
@@ -2490,21 +2570,9 @@ void Balance_Task(void) {
         turn_out = 0.0f;
         if (g_triggered_turn_active != 0u)
         {
-            float yaw_err = yaw_ref_total - yaw_total;
-            uint8_t turn_finished =
-                ((fabsf(yaw_err) <= TRIGGERED_TURN_SETTLE_ERR_RAD) &&
-                 (fabsf(yaw_gyro) <= TRIGGERED_TURN_SETTLE_GYRO_RAD_S))
-                || ((int32_t)(now_ms - g_triggered_turn_deadline_ms) >= 0);
-
-            if (turn_finished != 0u)
-            {
-                g_triggered_turn_active = 0u;
-                yaw_ref_valid = 0u;
-            }
-            else
-            {
-                turn_out = turn_loop_calc(yaw_total, yaw_gyro, 0u);
-            }
+            turn_out = clampf_local(turn_loop_calc(yaw_total, yaw_gyro, 0u),
+                                    -TRIGGERED_TURN_OUT_LIMIT,
+                                    TRIGGERED_TURN_OUT_LIMIT);
         }
 
         /*
