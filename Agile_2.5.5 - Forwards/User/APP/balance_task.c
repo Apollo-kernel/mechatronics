@@ -41,15 +41,18 @@
 
 
 /*
- * Speed loop target: chassis speed command in encoder raw units per 20 ms sample.
- * One revolution = 32768 position counts; at N rpm, delta per 20 ms is:
- *   (N / 60) * (0.02 s) * 32768 = N * 32768 / 3000
- * Chassis metric uses 0.5*(m7_d - m10_d); for symmetric forward motion this matches
- * per-wheel delta when the two encoders oppose under this mounting.
- * Negative d_raw = backward; positive = forward (swap if your chassis sign is opposite).
+ * Hardcoded app command triple (x, y, z):
+ * - x: signed translational speed in rpm (+forward, -backward)
+ * - y/z: reserved for future use (rotation disabled in this build)
+ *
+ * Examples:
+ *   (10, 0, 0)  -> forward 10 rpm
+ *   (5, 0, 0)   -> forward 5 rpm
+ *   (-10, 0, 0) -> backward 10 rpm
  */
-#define SPEED_TARGET_BACKWARD_RPM    15.0f
-#define SPEED_TARGET_D_RAW_20MS      (-(SPEED_TARGET_BACKWARD_RPM) * 32768.0f / 3000.0f)
+#define APP_CMD_X_RPM               70.0f
+#define APP_CMD_Y                   0.0f
+#define APP_CMD_Z                   0.0f
 
 // #define SPEED_KP                   230.0f
 // #define SPEED_KI                   0.0f
@@ -68,8 +71,8 @@ static balance_param_t g_balance_param = {
     .balance_kd = 0.0f,
     .speed_kp   = 36.0f,        //35 //37       //23        //28
     .speed_ki   = 0.09f,        //0.08 //0.09    //0.05      //0.05
-    .turn_kp    = 4500.0f,      /* in-place yaw tracking; tune if spin is weak */
-    .turn_kd    = 120.0f,
+    .turn_kp    = 0.0f,
+    .turn_kd    = 0.0f,
 };
 
 typedef enum {
@@ -241,19 +244,6 @@ static uint32_t speed_pos_tick_m10_used = 0u;
 
 static float yaw_ref_total = 0.0f;
 static uint8_t yaw_ref_valid = 0u;
-
-/* Continuous in-place yaw: reference ramps at fixed rate forever. Translation = 0 while spinning. */
-typedef enum
-{
-    SPIN_WAIT_INS = 0,
-    SPIN_CONTINUOUS
-} spin_maneuver_state_t;
-
-#define SPIN_RATE_DEG_PER_S        20.0f
-#define SPIN_RATE_RAD_PER_S        ((SPIN_RATE_DEG_PER_S) * 0.01745329252f)
-
-static spin_maneuver_state_t g_spin_state = SPIN_WAIT_INS;
-static uint32_t g_spin_last_ms = 0u;
 
 static float g_vofa_ch[VOFA_UART1_CH_NUM] = {0.0f};
 static volatile uint8_t g_balance_closed_loop_enable = 1u;
@@ -1112,9 +1102,6 @@ static void control_state_reset(void)
 
     yaw_ref_total = 0.0f;
     yaw_ref_valid = 0u;
-
-    g_spin_state = SPIN_WAIT_INS;
-    g_spin_last_ms = 0u;
 }
 
 static float speed_loop_calc(float speed_d_raw_20ms, uint8_t reset, float speed_target_cmd)
@@ -1193,53 +1180,13 @@ static float turn_loop_calc(float yaw_total, float gyro_z, uint8_t reset) {
     return clampf_local(out, -TURN_OUT_LIMIT, TURN_OUT_LIMIT);
 }
 
-static void balance_spin_maneuver_update(void)
+static float app_cmd_speed_target_d_raw_20ms(void)
 {
-    switch (g_spin_state)
-    {
-    case SPIN_WAIT_INS:
-        if (INS.ins_flag != 0U)
-        {
-            yaw_ref_total = INS.YawTotalAngle;
-            yaw_ref_valid = 1U;
-            g_spin_last_ms = HAL_GetTick();
-            g_spin_state = SPIN_CONTINUOUS;
-        }
-        break;
+    const float x_rpm = APP_CMD_X_RPM;
+    (void)APP_CMD_Y;
+    (void)APP_CMD_Z;
 
-    case SPIN_CONTINUOUS:
-    {
-        uint32_t now = HAL_GetTick();
-        float dt;
-
-        if (g_spin_last_ms == 0u)
-        {
-            dt = (float)BALANCE_TASK_PERIOD_MS * 0.001f;
-        }
-        else
-        {
-            dt = (float)(now - g_spin_last_ms) * 0.001f;
-        }
-
-        if (dt > 0.05f)
-        {
-            dt = 0.05f;
-        }
-
-        if (dt < 0.001f)
-        {
-            dt = 0.001f;
-        }
-
-        g_spin_last_ms = now;
-        yaw_ref_total += SPIN_RATE_RAD_PER_S * dt;
-        yaw_ref_valid = 1U;
-        break;
-    }
-
-    default:
-        break;
-    }
+    return x_rpm * 32768.0f / 3000.0f;
 }
 
 static int16_t open_from_signed(float u) {
@@ -2384,10 +2331,7 @@ void Balance_Task(void) {
             continue;
         }
 
-        balance_spin_maneuver_update();
-
-        /* Continuous spin: translation = 0 while rotating (not SPIN_WAIT_INS). */
-        speed_target_cmd = ((g_spin_state == SPIN_WAIT_INS) ? SPEED_TARGET_D_RAW_20MS : 0.0f);
+        speed_target_cmd = app_cmd_speed_target_d_raw_20ms();
 
         balance_out = g_balance_param.balance_kp * pitch
                     - g_balance_param.balance_kd * pitch_gyro;
@@ -2398,8 +2342,8 @@ void Balance_Task(void) {
 
         speed_out = speed_loop_calc(speed_d_raw_20ms, 0u, speed_target_cmd);
 
-        /* ===================== 3) 转向环：PD ===================== */
-        turn_out = turn_loop_calc(yaw_total, yaw_gyro, 0u);
+        /* Rotation disabled: straight-drive only (no turn command). */
+        turn_out = 0.0f;
 
         /*
          * 并联三环：

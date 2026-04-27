@@ -41,15 +41,16 @@
 
 
 /*
- * Speed loop target: chassis speed command in encoder raw units per 20 ms sample.
- * One revolution = 32768 position counts; at N rpm, delta per 20 ms is:
- *   (N / 60) * (0.02 s) * 32768 = N * 32768 / 3000
- * Chassis metric uses 0.5*(m7_d - m10_d); for symmetric forward motion this matches
- * per-wheel delta when the two encoders oppose under this mounting.
- * Negative d_raw = backward; positive = forward (swap if your chassis sign is opposite).
+ * P8 speed target, unit = rpm.
+ *
+ * #P8=25!   -> forward 25 rpm
+ * #P8=-25!  -> backward 25 rpm
+ * #P8=0!    -> no commanded cruise speed
  */
-#define SPEED_TARGET_BACKWARD_RPM    15.0f
-#define SPEED_TARGET_D_RAW_20MS      (-(SPEED_TARGET_BACKWARD_RPM) * 32768.0f / 3000.0f)
+#define SPEED_TARGET_DEFAULT_RPM          (0.0f)
+#define SPEED_TARGET_RPM_LIMIT            80.0f
+#define SPEED_TARGET_RPM_TO_D_RAW_20MS(rpm)  ((rpm) * 32768.0f / 3000.0f)
+#define SPIN_TARGET_DEG_LIMIT             360.0f
 
 // #define SPEED_KP                   230.0f
 // #define SPEED_KI                   0.0f
@@ -257,6 +258,12 @@ static uint32_t g_triggered_turn_last_ms = 0u;
 static uint32_t g_triggered_turn_deadline_ms = 0u;
 static float g_triggered_turn_goal = 0.0f;
 
+static volatile uint8_t g_chassis_pos_ref_follow_enable = 0u;
+static volatile uint8_t g_ws2812_enable = 1u;
+static volatile uint8_t g_ws2812_r = 0u;
+static volatile uint8_t g_ws2812_g = 0u;
+static volatile uint8_t g_ws2812_b = 0u;
+
 // Continuous-spin state machine disabled so only the triggered -90 degree turn remains.
 // /* Continuous in-place yaw: reference ramps at fixed rate forever. Translation = 0 while spinning. */
 // typedef enum
@@ -284,7 +291,7 @@ static volatile uint8_t g_balance_closed_loop_enable = 1u;
 // Set these from your app to control the robot
 float target_speed_x = 0.0f;  // Forward/Backward speed in RPM (e.g., 10 for forward, -10 for backward)
 float target_speed_y = 0.0f;  // Strafe (Not used for 2-wheel differential drive)
-float target_spin_z  = -180.0f;  // Target spin amount in degrees (e.g., 360, -90)
+float target_spin_z  = 90.0f;  // Target spin amount in degrees (e.g., 360, -90)
 
 uint8_t trigger_spin = 1;     // Set to 1 to execute the target_spin_z turn once
 /* --------------------------------------- */
@@ -340,6 +347,56 @@ int Balance_ParamSetById(uint8_t id, float value)
                 return 1;
             }
             break;
+        case 8:
+            if ((value >= -SPEED_TARGET_RPM_LIMIT) && (value <= SPEED_TARGET_RPM_LIMIT))
+            {
+                target_speed_x = value;
+                return 1;
+            }
+            break;
+        case 9:
+            if ((value >= 0.0f) && (value <= 1.0f))
+            {
+                g_chassis_pos_ref_follow_enable = (value >= 0.5f) ? 1u : 0u;
+                return 1;
+            }
+            break;
+        case 10:
+            if ((value >= 0.0f) && (value <= 1.0f))
+            {
+                g_ws2812_enable = (value >= 0.5f) ? 1u : 0u;
+                return 1;
+            }
+            break;
+        case 11:
+            if ((value >= 0.0f) && (value <= 255.0f))
+            {
+                g_ws2812_r = (uint8_t)(value + 0.5f);
+                return 1;
+            }
+            break;
+        case 12:
+            if ((value >= 0.0f) && (value <= 255.0f))
+            {
+                g_ws2812_g = (uint8_t)(value + 0.5f);
+                return 1;
+            }
+            break;
+        case 13:
+            if ((value >= 0.0f) && (value <= 255.0f))
+            {
+                g_ws2812_b = (uint8_t)(value + 0.5f);
+                return 1;
+            }
+            break;
+        case 14:
+            if ((value >= -SPIN_TARGET_DEG_LIMIT) && (value <= SPIN_TARGET_DEG_LIMIT))
+            {
+                target_spin_z = value;
+                trigger_spin = 1u;
+                return 1;
+            }
+            break;
 
         default:
             break;
@@ -356,6 +413,35 @@ void Balance_GetVofaChannels(float *ch)
     }
 
     memcpy(ch, g_vofa_ch, sizeof(g_vofa_ch));
+}
+
+void Balance_WS2812_GetRGB(uint8_t *r, uint8_t *g, uint8_t *b)
+{
+    uint8_t out_r = 0u;
+    uint8_t out_g = 0u;
+    uint8_t out_b = 0u;
+
+    if (g_ws2812_enable != 0u)
+    {
+        out_r = g_ws2812_r;
+        out_g = g_ws2812_g;
+        out_b = g_ws2812_b;
+    }
+
+    if (r != NULL)
+    {
+        *r = out_r;
+    }
+
+    if (g != NULL)
+    {
+        *g = out_g;
+    }
+
+    if (b != NULL)
+    {
+        *b = out_b;
+    }
 }
 
 static void balance_fill_vofa_channels(float balance_out, float speed_out, float turn_out)
@@ -521,8 +607,17 @@ static void balance_cli_print_help(void)
     (void)UART1_LogPrintfDrop("auto start | auto stop  : run / stop auto test\r\n");
 
     (void)UART1_LogPrintfDrop("\r\n");
-    (void)UART1_LogPrintfDrop("switch from VOFA stream to CLI with: #CLI!\r\n");
-    (void)UART1_LogPrintfDrop("in VOFA mode: #BAL=1! / #BAL=0! to enable / disable balance\r\n");
+    (void)UART1_LogPrintfDrop("shared hash cmds in CLI/VOFA:\r\n");
+    (void)UART1_LogPrintfDrop("#P8=-80..80!            : speed target rpm, +forward, -backward\r\n");
+    (void)UART1_LogPrintfDrop("#P9=0/1!                : pos hold on/off, 0=hold, 1=follow current\r\n");
+    (void)UART1_LogPrintfDrop("#P10=0/1!               : ws2812 off/on, keep last RGB\r\n");
+    (void)UART1_LogPrintfDrop("#P11=0..255!            : ws2812 red target\r\n");
+    (void)UART1_LogPrintfDrop("#P12=0..255!            : ws2812 green target\r\n");
+    (void)UART1_LogPrintfDrop("#P13=0..255!            : ws2812 blue target\r\n");
+    (void)UART1_LogPrintfDrop("#P14=-360..360!         : trigger spin by angle in degrees\r\n");
+    (void)UART1_LogPrintfDrop("#BAL=1! / #BAL=0!       : closed-loop on/off\r\n");
+    (void)UART1_LogPrintfDrop("#CLI!                   : switch to CLI mode\r\n");
+    (void)UART1_LogPrintfDrop("#VOFA! / #STREAM!       : switch to VOFA mode\r\n");
 }
 
 static void balance_cli_print_map(void)
@@ -556,13 +651,24 @@ static void balance_cli_print_status(void)
         pos_err);
 
     (void)UART1_LogPrintfDrop(
-        "P1 bal_kp=%.3f P2 bal_kd=%.3f P3 spd_kp=%.3f P4 pos_ki=%.3f P5 turn_kp=%.3f P6 turn_kd=%.3f\r\n",
+        "P1 bal_kp=%.3f P2 bal_kd=%.3f P3 spd_kp=%.3f P4 pos_ki=%.3f P5 turn_kp=%.3f P6 turn_kd=%.3f P8 spd_ref=%.3f rpm P9 pos_follow=%u\r\n",
         g_balance_param.balance_kp,
         g_balance_param.balance_kd,
         g_balance_param.speed_kp,
         g_balance_param.speed_ki,
         g_balance_param.turn_kp,
-        g_balance_param.turn_kd);
+        g_balance_param.turn_kd,
+        target_speed_x,
+        (unsigned)g_chassis_pos_ref_follow_enable);
+
+    (void)UART1_LogPrintfDrop(
+        "P10 led=%s P11 R=%u P12 G=%u P13 B=%u P14 spin_deg=%.3f pending=%u\r\n",
+        (g_ws2812_enable != 0u) ? "ON" : "OFF",
+        (unsigned)g_ws2812_r,
+        (unsigned)g_ws2812_g,
+        (unsigned)g_ws2812_b,
+        target_spin_z,
+        (unsigned)trigger_spin);
 
     (void)UART1_LogPrintfDrop(
         "m7 rpm=%.1f self_turns=%ld raw=%u pos=%.3fdeg d_raw_20ms=%ld\r\n",
@@ -817,6 +923,57 @@ static uint8_t balance_cli_target_auto_running(bal_cli_target_t target)
            motor_auto_is_running(&motor_uart10_dma);
 }
 
+static uint8_t balance_handle_hash_command(const char *line)
+{
+    unsigned long id_ul;
+    float value;
+    int bal_en;
+
+    if (line == NULL)
+    {
+        return 0u;
+    }
+
+    if (strcmp(line, "#CLI!") == 0)
+    {
+        VOFA_UART1_SetMode(UART1_LINK_MODE_CLI);
+        balance_cli_prompt();
+        return 1u;
+    }
+
+    if ((strcmp(line, "#VOFA!") == 0) || (strcmp(line, "#STREAM!") == 0))
+    {
+        VOFA_UART1_SetMode(UART1_LINK_MODE_VOFA);
+        return 1u;
+    }
+
+    if (sscanf(line, "#BAL=%d!", &bal_en) == 1)
+    {
+        Balance_SetClosedLoopEnable((bal_en != 0) ? 1U : 0U);
+        (void)UART1_LogPrintfDrop("closed-loop balance: %s\r\n",
+                                  (bal_en != 0) ? "ON" : "OFF");
+        balance_cli_prompt();
+        return 1u;
+    }
+
+    if (sscanf(line, "#P%lu=%f!", &id_ul, &value) == 2)
+    {
+        if (Balance_ParamSetById((uint8_t)id_ul, value))
+        {
+            (void)UART1_LogPrintfDrop("P%lu=%g ok\r\n", id_ul, (double)value);
+        }
+        else
+        {
+            (void)UART1_LogPrintfDrop("P%lu=%g invalid\r\n", id_ul, (double)value);
+        }
+
+        balance_cli_prompt();
+        return 1u;
+    }
+
+    return 0u;
+}
+
 void Balance_CLI_ProcessLine(char *line)
 {
     char *argv[16];
@@ -838,6 +995,11 @@ void Balance_CLI_ProcessLine(char *line)
     if (*line == '\0')
     {
         balance_cli_prompt();
+        return;
+    }
+
+    if (balance_handle_hash_command(line))
+    {
         return;
     }
 
@@ -1203,10 +1365,18 @@ static float speed_loop_calc(float speed_d_raw_20ms, uint8_t reset, float speed_
     {
         chassis_pos_fb_raw = chassis_position_raw();
 
-        if (!chassis_pos_ref_valid)
+        if (g_chassis_pos_ref_follow_enable != 0u)
         {
             chassis_pos_ref_raw = chassis_pos_fb_raw;
             chassis_pos_ref_valid = 1u;
+        }
+        else
+        {
+            if (!chassis_pos_ref_valid)
+            {
+                chassis_pos_ref_raw = chassis_pos_fb_raw;
+                chassis_pos_ref_valid = 1u;
+            }
         }
 
         speed_pos_tick_m7_used  = motor_uart7_dma.fb.last_pos_tick;
@@ -2536,7 +2706,7 @@ void Balance_Task(void) {
         /* --- NEW CODE: Forward/Backward Speed (X) --- */
         // Converts RPM to the raw encoder ticks per 20ms the robot uses internally
         // According to your comments: Positive d_raw = forward, Negative = backward
-        speed_target_cmd = target_speed_x * (32768.0f / 3000.0f);
+        speed_target_cmd = SPEED_TARGET_RPM_TO_D_RAW_20MS(target_speed_x);
 
         /* --- NEW CODE: Triggered Spin (Z) --- */
         if (trigger_spin == 1)
