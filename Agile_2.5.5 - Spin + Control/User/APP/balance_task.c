@@ -257,6 +257,8 @@ static uint8_t g_triggered_turn_ramping = 0u;
 static uint32_t g_triggered_turn_last_ms = 0u;
 static uint32_t g_triggered_turn_deadline_ms = 0u;
 static float g_triggered_turn_goal = 0.0f;
+static float g_spin_frame_zero_yaw = 0.0f;
+static uint8_t g_spin_frame_zero_valid = 0u;
 
 static volatile uint8_t g_chassis_pos_ref_follow_enable = 0u;
 static volatile uint8_t g_ws2812_enable = 1u;
@@ -291,9 +293,9 @@ static volatile uint8_t g_balance_closed_loop_enable = 1u;
 // Set these from your app to control the robot
 float target_speed_x = 0.0f;  // Forward/Backward speed in RPM (e.g., 10 for forward, -10 for backward)
 float target_speed_y = 0.0f;  // Strafe (Not used for 2-wheel differential drive)
-float target_spin_z  = 90.0f;  // Target spin amount in degrees (e.g., 360, -90)
+float target_spin_z  = 0.0f;  // Absolute commanded heading in the 0..360 degree VOFA frame.
 
-uint8_t trigger_spin = 1;     // Set to 1 to execute the target_spin_z turn once
+uint8_t trigger_spin = 0;     // Set to 1 to execute the target_spin_z command once
 /* --------------------------------------- */
 
 int Balance_ParamSetById(uint8_t id, float value)
@@ -390,7 +392,7 @@ int Balance_ParamSetById(uint8_t id, float value)
             }
             break;
         case 14:
-            if ((value >= -SPIN_TARGET_DEG_LIMIT) && (value <= SPIN_TARGET_DEG_LIMIT))
+            if ((value >= 0.0f) && (value <= SPIN_TARGET_DEG_LIMIT))
             {
                 target_spin_z = value;
                 trigger_spin = 1u;
@@ -614,7 +616,7 @@ static void balance_cli_print_help(void)
     (void)UART1_LogPrintfDrop("#P11=0..255!            : ws2812 red target\r\n");
     (void)UART1_LogPrintfDrop("#P12=0..255!            : ws2812 green target\r\n");
     (void)UART1_LogPrintfDrop("#P13=0..255!            : ws2812 blue target\r\n");
-    (void)UART1_LogPrintfDrop("#P14=-360..360!         : trigger spin by angle in degrees\r\n");
+    (void)UART1_LogPrintfDrop("#P14=0..360!            : absolute heading in startup-fixed frame\r\n");
     (void)UART1_LogPrintfDrop("#BAL=1! / #BAL=0!       : closed-loop on/off\r\n");
     (void)UART1_LogPrintfDrop("#CLI!                   : switch to CLI mode\r\n");
     (void)UART1_LogPrintfDrop("#VOFA! / #STREAM!       : switch to VOFA mode\r\n");
@@ -662,7 +664,7 @@ static void balance_cli_print_status(void)
         (unsigned)g_chassis_pos_ref_follow_enable);
 
     (void)UART1_LogPrintfDrop(
-        "P10 led=%s P11 R=%u P12 G=%u P13 B=%u P14 spin_deg=%.3f pending=%u\r\n",
+        "P10 led=%s P11 R=%u P12 G=%u P13 B=%u P14 heading_deg=%.3f pending=%u\r\n",
         (g_ws2812_enable != 0u) ? "ON" : "OFF",
         (unsigned)g_ws2812_r,
         (unsigned)g_ws2812_g,
@@ -1247,6 +1249,37 @@ static float clampf_local(float x, float min_v, float max_v) {
         return max_v;
     }
     return x;
+}
+
+static float wrap_angle_deg_360(float deg)
+{
+    while (deg < 0.0f)
+    {
+        deg += 360.0f;
+    }
+
+    while (deg >= 360.0f)
+    {
+        deg -= 360.0f;
+    }
+
+    return deg;
+}
+
+static float shortest_angle_delta_deg(float from_deg, float to_deg)
+{
+    float delta = wrap_angle_deg_360(to_deg) - wrap_angle_deg_360(from_deg);
+
+    if (delta > 180.0f)
+    {
+        delta -= 360.0f;
+    }
+    else if (delta < -180.0f)
+    {
+        delta += 360.0f;
+    }
+
+    return delta;
 }
 
 static float chassis_speed_d_raw_20ms(void)
@@ -2686,6 +2719,12 @@ void Balance_Task(void) {
         yaw_gyro = INS.Gyro[2];
         now_ms = HAL_GetTick();
 
+        if (g_spin_frame_zero_valid == 0u)
+        {
+            g_spin_frame_zero_yaw = yaw_total;
+            g_spin_frame_zero_valid = 1u;
+        }
+
         speed_d_raw_20ms = chassis_speed_d_raw_20ms();
 
         if (fabsf(pitch) > BALANCE_STOP_RAD) {
@@ -2711,6 +2750,12 @@ void Balance_Task(void) {
         /* --- NEW CODE: Triggered Spin (Z) --- */
         if (trigger_spin == 1)
         {
+            float current_heading_deg =
+                wrap_angle_deg_360((yaw_total - g_spin_frame_zero_yaw) * 57.2957795f);
+            float target_delta_deg =
+                shortest_angle_delta_deg(current_heading_deg,
+                                         wrap_angle_deg_360(target_spin_z));
+
             // Start from the current heading and ramp the reference toward the requested turn angle.
             yaw_ref_total = yaw_total;
             yaw_ref_valid = 1u;
@@ -2718,7 +2763,7 @@ void Balance_Task(void) {
             g_triggered_turn_ramping = 1u;
             g_triggered_turn_last_ms = now_ms;
             g_triggered_turn_deadline_ms = 0u;
-            g_triggered_turn_goal = yaw_total + (target_spin_z * 0.01745329252f);
+            g_triggered_turn_goal = yaw_total + (target_delta_deg * 0.01745329252f);
 
             // Clear the trigger so it only spins exactly once
             trigger_spin = 0;
