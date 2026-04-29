@@ -133,7 +133,7 @@ Some of the important engineering work in this project included:
 
 Lare added here so recruiters can verify the robot quickly:
 
-* Demo video: [https://vimeo.com/1180182469](https://vimeo.com/1180182469)
+* Demo video: [https://vimeo.com/1187837796](https://vimeo.com/1187837796)
 * Project page / website: [https://agile-navigator.gitbook.io/docs](https://agile-navigator.gitbook.io/docs)
 
 <figure><img src=".gitbook/assets/IMG_3295.JPG" alt=""><figcaption></figcaption></figure>
