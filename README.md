@@ -13,7 +13,7 @@ Built and documented by **Yuyang Huang**
 
 ### Quick Links
 
-* **Demo video:** [https://vimeo.com/1180182469](https://vimeo.com/1180182469)
+* **Demo video:** [https://vimeo.com/1187837796](https://vimeo.com/1187837796)
 * **Repository:** [https://github.com/Apollo-kernel/mechatronics](https://github.com/Apollo-kernel/mechatronics)
 * **Project Docs:** [https://agile-navigator.gitbook.io/docs](https://agile-navigator.gitbook.io/docs)
 
