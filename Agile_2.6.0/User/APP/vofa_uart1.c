@@ -28,13 +28,87 @@ static char s_vofa_cmd_buf[VOFA_UART1_CMD_BUF_LEN];
 static volatile uint8_t  s_cli_line_ready     = 0U;
 static volatile uint16_t s_cli_line_build_len = 0U;
 static char s_cli_line_buf[VOFA_UART1_CMD_BUF_LEN];
+static volatile uint8_t s_uart1_rx_recover_req = 0U;
+static volatile uint32_t s_uart1_rx_error_count = 0U;
 
-static void VOFA_UART1_RestartRxDMA(void)
+static void VOFA_UART1_ClearRxState(void);
+
+static void VOFA_UART1_ClearUartErrorFlags(void)
+{
+    __HAL_UART_CLEAR_OREFLAG(&huart1);
+    __HAL_UART_CLEAR_FEFLAG(&huart1);
+    __HAL_UART_CLEAR_NEFLAG(&huart1);
+    __HAL_UART_CLEAR_PEFLAG(&huart1);
+    __HAL_UART_CLEAR_IDLEFLAG(&huart1);
+
+    huart1.ErrorCode = HAL_UART_ERROR_NONE;
+}
+
+static void VOFA_UART1_StartRxDMA(void)
 {
     if (HAL_UARTEx_ReceiveToIdle_DMA(&huart1, s_vofa_rx_dma, sizeof(s_vofa_rx_dma)) == HAL_OK)
     {
         __HAL_DMA_DISABLE_IT(huart1.hdmarx, DMA_IT_HT);
+        s_uart1_rx_recover_req = 0U;
     }
+    else
+    {
+        s_uart1_rx_recover_req = 1U;
+    }
+}
+
+static void VOFA_UART1_RecoverRxDMA_Task(void)
+{
+    uint8_t need_recover;
+
+    need_recover = s_uart1_rx_recover_req;
+
+    /*
+     * Normal ReceiveToIdle DMA should keep RxState at BUSY_RX.
+     * If unplug/noise/error makes RxState leave BUSY_RX, restart RX.
+     */
+    if (huart1.RxState != HAL_UART_STATE_BUSY_RX)
+    {
+        need_recover = 1U;
+    }
+
+    if (huart1.ErrorCode != HAL_UART_ERROR_NONE)
+    {
+        need_recover = 1U;
+    }
+
+    if (need_recover == 0U)
+    {
+        return;
+    }
+
+    __disable_irq();
+    s_uart1_rx_recover_req = 0U;
+    VOFA_UART1_ClearRxState();
+    __enable_irq();
+
+    /*
+     * Only abort RX side. Do not abort TX here unless necessary,
+     * because USART1 TX is also used by UART1_Log / VOFA stream.
+     */
+    (void)HAL_UART_AbortReceive(&huart1);
+
+    VOFA_UART1_ClearUartErrorFlags();
+
+    memset(s_vofa_rx_dma, 0, sizeof(s_vofa_rx_dma));
+
+    VOFA_UART1_StartRxDMA();
+}
+
+void VOFA_UART1_ErrorISR(UART_HandleTypeDef *huart)
+{
+    if (huart != &huart1)
+    {
+        return;
+    }
+
+    s_uart1_rx_error_count++;
+    s_uart1_rx_recover_req = 1U;
 }
 
 static void VOFA_UART1_ClearRxState(void)
@@ -66,7 +140,8 @@ void VOFA_UART1_Init(void)
     memset(s_vofa_rx_dma, 0, sizeof(s_vofa_rx_dma));
 
     VOFA_UART1_SetMode(UART1_LINK_MODE_CLI);
-    VOFA_UART1_RestartRxDMA();
+    VOFA_UART1_ClearUartErrorFlags();
+    VOFA_UART1_StartRxDMA();
 }
 
 int VOFA_UART1_Send8(const float ch[VOFA_UART1_CH_NUM])
@@ -183,7 +258,7 @@ void VOFA_UART1_RxEvent(UART_HandleTypeDef *huart, uint16_t Size)
         }
     }
 
-    VOFA_UART1_RestartRxDMA();
+    VOFA_UART1_StartRxDMA();
 }
 
 void VOFA_UART1_Poll(void)
@@ -193,6 +268,8 @@ void VOFA_UART1_Poll(void)
     char *end_ptr;
     unsigned long id_ul;
     float value;
+
+    VOFA_UART1_RecoverRxDMA_Task();
 
     if (s_uart1_mode == UART1_LINK_MODE_VOFA)
     {

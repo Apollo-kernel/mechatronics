@@ -22,6 +22,7 @@ extern "C" {
     void VOFA_UART1_Init(void);
     void VOFA_UART1_Poll(void);
     void VOFA_UART1_RxEvent(UART_HandleTypeDef *huart, uint16_t Size);
+    void VOFA_UART1_ErrorISR(UART_HandleTypeDef *huart);
 
     void VOFA_UART1_SetMode(uart1_link_mode_t mode);
     uart1_link_mode_t VOFA_UART1_GetMode(void);

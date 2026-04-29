@@ -207,6 +207,7 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 {
 	UART1_LogErrorISR(huart);
+	VOFA_UART1_ErrorISR(huart);
 	Balance_MotorUartTxError(huart);
 }
 
