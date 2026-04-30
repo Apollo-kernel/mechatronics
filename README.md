@@ -1,11 +1,4 @@
----
-description: >-
-  Documentation for an STM32H7-based two-wheeled self-balancing robot, covering
-  hardware design, embedded firmware, IMU sensing, motor communication, and
-  real-time balance control.
----
-
-# Two-Wheeled Self-Balancing Robot
+# Self-Balancing Robot with Wi-Fi Joystick Control
 
 Built and documented by **Yuyang Huang**
 
@@ -21,7 +14,7 @@ Built and documented by **Yuyang Huang**
 
 This repository documents my work on a two-wheeled self-balancing robot built on an STM32H7-based control platform.
 
-The project focuses on the core robotics stack needed to bring up a real robot system: embedded firmware, IMU integration, attitude estimation, motor communication, real-time balance control, system tuning, and hardware/software integration.
+The project focuses on the core robotics stack needed to bring up a real robot system: embedded firmware, IMU integration, attitude estimation, motor communication, real-time balance control, system tuning, and an ESP32-S3 Wi-Fi joystick web interface.
 
 ### What this project demonstrates
 
