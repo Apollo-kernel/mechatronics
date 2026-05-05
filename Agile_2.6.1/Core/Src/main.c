@@ -42,6 +42,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define AGILE_VBUS_SCALE  (3.3f * 11.0f / 65535.0f)
 
 /* USER CODE END PD */
 
@@ -65,6 +66,12 @@ void MX_FREERTOS_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+static uint16_t s_agile_adc_val[2] = {0U, 0U};
+
+float Agile_GetBusVoltage(void)
+{
+  return ((float)s_agile_adc_val[0]) * AGILE_VBUS_SCALE;
+}
 
 /* USER CODE END 0 */
 
@@ -111,6 +118,16 @@ int main(void)
   MX_USART10_UART_Init();
   MX_SPI2_Init();
   /* USER CODE BEGIN 2 */
+  if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  if (HAL_ADC_Start_DMA(&hadc1, (uint32_t *)s_agile_adc_val, 2U) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
   DWT_Init(550);
 
   while (BMI088_init(&hspi2, 0) != BMI088_NO_ERROR)

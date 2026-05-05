@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-#define VOFA_UART1_STREAM_ENABLE      1
+#define VOFA_UART1_STREAM_ENABLE      0
 #define VOFA_UART1_ASCII_LOG_ENABLE   0
 
 // #define VOFA_UART1_CH_NUM             8U

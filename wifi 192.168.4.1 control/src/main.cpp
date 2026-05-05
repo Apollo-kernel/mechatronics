@@ -1,4 +1,7 @@
 #include "main.h"
+#include <math.h>
+#include <stdio.h>
+#include <string.h>
 
 HardwareSerial AgileSerial(1);
 WebServer server(80);
@@ -11,6 +14,10 @@ static volatile int g_lr_cmd = 0;      // -1000 ~ +1000
 static volatile int g_enable = 0;      // 0 / 1
 static unsigned long g_last_uart_ms = 0;
 static const unsigned long JOY_SEND_PERIOD_MS = 100UL;
+static float g_voltage_v = NAN;
+static unsigned long g_last_voltage_ms = 0;
+static char g_uart_line[64];
+static size_t g_uart_line_len = 0;
 
 static int clamp_int(int x, int min_v, int max_v)
 {
@@ -50,6 +57,42 @@ static void sendBalanceFrame()
   AgileSerial.print(buf);
 }
 
+static void processTelemetryLine(const char *line)
+{
+  float voltage = 0.0f;
+
+  if (sscanf(line, "vbus=%f V", &voltage) == 1) {
+    g_voltage_v = voltage;
+    g_last_voltage_ms = millis();
+  }
+}
+
+static void pollTelemetryUart()
+{
+  while (AgileSerial.available() > 0) {
+    const char ch = static_cast<char>(AgileSerial.read());
+
+    if (ch == '\r') {
+      continue;
+    }
+
+    if (ch == '\n') {
+      g_uart_line[g_uart_line_len] = '\0';
+      if (g_uart_line_len > 0) {
+        processTelemetryLine(g_uart_line);
+      }
+      g_uart_line_len = 0;
+      continue;
+    }
+
+    if (g_uart_line_len < sizeof(g_uart_line) - 1) {
+      g_uart_line[g_uart_line_len++] = ch;
+    } else {
+      g_uart_line_len = 0;
+    }
+  }
+}
+
 static void handleRoot()
 {
   static const char page[] PROGMEM = R"rawliteral(
@@ -80,6 +123,33 @@ static void handleRoot()
       flex-direction: column;
       align-items: center;
       gap: 16px;
+    }
+    .voltage-card {
+      width: 100%;
+      background: linear-gradient(135deg, #18344d, #10202f);
+      border: 1px solid rgba(120, 190, 255, 0.25);
+      border-radius: 16px;
+      padding: 16px 18px;
+      box-sizing: border-box;
+      text-align: center;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+    }
+    .voltage-label {
+      font-size: 13px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      opacity: 0.72;
+      margin-bottom: 6px;
+    }
+    .voltage-value {
+      font-size: 34px;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+    .voltage-meta {
+      margin-top: 6px;
+      font-size: 14px;
+      opacity: 0.8;
     }
     .row {
       width: 100%;
@@ -141,6 +211,12 @@ static void handleRoot()
   <div class="panel">
     <h2>Agile ESP32 Joystick</h2>
 
+    <div class="voltage-card">
+      <div class="voltage-label">STM32 Bus Voltage</div>
+      <div class="voltage-value" id="voltageText">Waiting...</div>
+      <div class="voltage-meta" id="voltageMeta">Listening on GPIO44 from STM32 TX</div>
+    </div>
+
     <div class="row">
       <button id="enableBtn" class="off">Balance OFF</button>
       <button id="stopBtn" class="stop">CENTER / STOP</button>
@@ -172,6 +248,8 @@ const enText = document.getElementById('enText');
 const cmdText = document.getElementById('cmdText');
 const enableBtn = document.getElementById('enableBtn');
 const stopBtn = document.getElementById('stopBtn');
+const voltageText = document.getElementById('voltageText');
+const voltageMeta = document.getElementById('voltageMeta');
 
 const size = 280;
 const stickSize = 96;
@@ -197,6 +275,26 @@ function sendJoy() {
   enText.textContent = en;
   cmdText.textContent = `#P15=${lr},P8=${fb}!`;
   fetch(`/joy?fb=${fb}&lr=${lr}&en=${en}`).catch(() => {});
+}
+
+function updateVoltage(data) {
+  if (data.hasVoltage) {
+    voltageText.textContent = `${Number(data.voltage).toFixed(3)} V`;
+    voltageMeta.textContent = `Last update ${data.ageMs} ms ago`;
+  } else {
+    voltageText.textContent = 'Waiting...';
+    voltageMeta.textContent = 'No STM32 voltage frame received yet';
+  }
+}
+
+function pollStatus() {
+  fetch('/status')
+    .then((res) => res.json())
+    .then((data) => updateVoltage(data))
+    .catch(() => {
+      voltageText.textContent = 'Offline';
+      voltageMeta.textContent = 'Unable to read ESP32 status';
+    });
 }
 
 function resetJoy(sendNow = true) {
@@ -263,6 +361,8 @@ stopBtn.addEventListener('click', () => {
 
 updateStick(0, 0);
 setInterval(sendJoy, 100);
+setInterval(pollStatus, 500);
+pollStatus();
 </script>
 </body>
 </html>
@@ -288,6 +388,23 @@ static void handleJoy()
   server.send(200, "text/plain", "ok");
 }
 
+static void handleStatus()
+{
+  char buf[128];
+  const bool has_voltage = !isnan(g_voltage_v);
+  const unsigned long age_ms = has_voltage ? (millis() - g_last_voltage_ms) : 0UL;
+
+  snprintf(
+      buf,
+      sizeof(buf),
+      "{\"hasVoltage\":%s,\"voltage\":%.3f,\"ageMs\":%lu}",
+      has_voltage ? "true" : "false",
+      has_voltage ? g_voltage_v : 0.0f,
+      age_ms);
+
+  server.send(200, "application/json", buf);
+}
+
 void setup()
 {
   Serial.begin(115200);
@@ -298,6 +415,7 @@ void setup()
 
   server.on("/", handleRoot);
   server.on("/joy", handleJoy);
+  server.on("/status", handleStatus);
   server.begin();
 
   delay(200);
@@ -307,6 +425,7 @@ void setup()
 
 void loop()
 {
+  pollTelemetryUart();
   server.handleClient();
 
   if (millis() - g_last_uart_ms >= JOY_SEND_PERIOD_MS) {

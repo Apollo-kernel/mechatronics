@@ -10,6 +10,7 @@
 #define VOFA_UART1_RX_DMA_LEN   64U
 #define VOFA_UART1_CMD_BUF_LEN  64U
 #define VOFA_JUSTFLOAT_TAIL_U32 0x7F800000UL
+#define UART1_VBUS_TX_PERIOD_MS 200U
 
 typedef struct __attribute__((packed))
 {
@@ -30,6 +31,7 @@ static volatile uint16_t s_cli_line_build_len = 0U;
 static char s_cli_line_buf[VOFA_UART1_CMD_BUF_LEN];
 static volatile uint8_t s_uart1_rx_recover_req = 0U;
 static volatile uint32_t s_uart1_rx_error_count = 0U;
+static uint32_t s_vbus_last_tx_ms = 0U;
 
 static void VOFA_UART1_ClearRxState(void);
 
@@ -55,6 +57,19 @@ static void VOFA_UART1_StartRxDMA(void)
     {
         s_uart1_rx_recover_req = 1U;
     }
+}
+
+static void VOFA_UART1_ServiceVoltageTx(void)
+{
+    const uint32_t now = HAL_GetTick();
+
+    if ((now - s_vbus_last_tx_ms) < UART1_VBUS_TX_PERIOD_MS)
+    {
+        return;
+    }
+
+    s_vbus_last_tx_ms = now;
+    (void)UART1_LogPrintfDrop("vbus=%.3f V\r\n", Agile_GetBusVoltage());
 }
 
 static void VOFA_UART1_RecoverRxDMA_Task(void)
@@ -89,7 +104,7 @@ static void VOFA_UART1_RecoverRxDMA_Task(void)
 
     /*
      * Only abort RX side. Do not abort TX here unless necessary,
-     * because USART1 TX is also used by UART1_Log / VOFA stream.
+     * because USART1 TX also carries the voltage telemetry for the ESP32 UI.
      */
     (void)HAL_UART_AbortReceive(&huart1);
 
@@ -127,7 +142,7 @@ void VOFA_UART1_SetMode(uart1_link_mode_t mode)
     (void)mode;
 
     __disable_irq();
-    /* UART1 is fixed to VOFA-TX + joystick-RX mode. */
+    /* UART1 is fixed to voltage-TX + joystick-RX mode. */
     s_uart1_mode = UART1_LINK_MODE_VOFA;
     VOFA_UART1_ClearRxState();
     __enable_irq();
@@ -141,6 +156,7 @@ uart1_link_mode_t VOFA_UART1_GetMode(void)
 void VOFA_UART1_Init(void)
 {
     memset(s_vofa_rx_dma, 0, sizeof(s_vofa_rx_dma));
+    s_vbus_last_tx_ms = HAL_GetTick();
 
     VOFA_UART1_SetMode(UART1_LINK_MODE_VOFA);
     VOFA_UART1_ClearUartErrorFlags();
@@ -149,11 +165,9 @@ void VOFA_UART1_Init(void)
 
 int VOFA_UART1_Send8(const float ch[VOFA_UART1_CH_NUM])
 {
+#if VOFA_UART1_STREAM_ENABLE
     vofa_uart1_frame_t frame;
 
-    /* UART1 TX is now always VOFA JustFloat.
-     * Do not gate streaming by CLI/VOFA RX mode.
-     */
     if (ch == NULL)
     {
         return 0;
@@ -163,6 +177,10 @@ int VOFA_UART1_Send8(const float ch[VOFA_UART1_CH_NUM])
     frame.tail = VOFA_JUSTFLOAT_TAIL_U32;
 
     return UART1_LogSendRawDrop((const uint8_t *)&frame, (uint16_t)sizeof(frame));
+#else
+    (void)ch;
+    return 0;
+#endif
 }
 
 void VOFA_UART1_RxEvent(UART_HandleTypeDef *huart, uint16_t Size)
@@ -228,6 +246,7 @@ void VOFA_UART1_Poll(void)
     char local_cmd[VOFA_UART1_CMD_BUF_LEN];
 
     VOFA_UART1_RecoverRxDMA_Task();
+    VOFA_UART1_ServiceVoltageTx();
 
     if (s_vofa_cmd_ready == 0U)
     {
@@ -245,8 +264,9 @@ void VOFA_UART1_Poll(void)
      * They are mapped in Balance_HandleJoystickCommand():
      *   P15: +/-1000 -> +/-180 deg/s
      *   P8 : +/-1000 -> +/-60 rpm
-     * No CLI echo, no #BAL response, no generic #P setting is sent on UART1,
-     * so UART1 TX remains a clean VOFA binary stream.
+     * No CLI echo, no #BAL response, and no generic #P setting is sent on UART1.
+     * USART1 TX is reserved for voltage telemetry lines:
+     *   vbus=<voltage> V
      */
     (void)Balance_HandleJoystickCommand(local_cmd);
 }

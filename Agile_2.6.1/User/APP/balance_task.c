@@ -2561,8 +2561,12 @@ static void balance_motor_init(void) {
 // }
 
 void Balance_Task(void) {
+#if VOFA_UART1_ASCII_LOG_ENABLE
     uint32_t last_print = HAL_GetTick();
+#endif
+#if VOFA_UART1_STREAM_ENABLE
     uint32_t last_vofa  = HAL_GetTick();
+#endif
     uint8_t control_phase = 0u;
 
     balance_motor_init();

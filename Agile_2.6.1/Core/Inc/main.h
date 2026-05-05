@@ -54,6 +54,7 @@ extern "C" {
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
+float Agile_GetBusVoltage(void);
 
 /* USER CODE END EFP */
 
