@@ -36,8 +36,8 @@
 // ===========================
 // Enter your WiFi credentials
 // ===========================
-const char* ssid = "iPhone";
-const char* password = "huangyuyang";
+const char* ssid = "iPhone2";
+const char* password = "32v98536bodja";
 
 void startCameraServer();
 void setupLedFlash(int pin);
@@ -133,8 +133,8 @@ void setup() {
   setupLedFlash(LED_GPIO_NUM);
 #endif
   Serial.println("The device needs to be linked to a 2.4G router........");
-  Serial.println("SSSID:iPhone");
-  Serial.println("Password:huangyuyang");
+  Serial.println("SSSID:iPhone2");
+  Serial.println("Password:sulimansammy");
   WiFi.begin(ssid, password);
   WiFi.setSleep(false);
 

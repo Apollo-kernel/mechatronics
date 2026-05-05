@@ -3,7 +3,7 @@
 HardwareSerial AgileSerial(1);
 WebServer server(80);
 
-const char* ap_ssid = "Joystick";
+const char* ap_ssid = "Joystick2";
 const char* ap_password = "12345678";
 
 static volatile int g_fb_cmd = 0;      // -1000 ~ +1000
