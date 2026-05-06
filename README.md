@@ -7,6 +7,7 @@ Built and documented by **Yuyang Huang**
 ### Quick Links
 
 * **Demo video:** [https://vimeo.com/1187837796](https://vimeo.com/1187837796)
+* **Files of 3D modeling & PCB Design:** [https://drive.google.com/drive/folders/1xyg5dH05jy\_7tste-kkUAPrdJ7IaqTEn](https://drive.google.com/drive/folders/1xyg5dH05jy_7tste-kkUAPrdJ7IaqTEn)
 * **Repository:** [https://github.com/Apollo-kernel/mechatronics](https://github.com/Apollo-kernel/mechatronics)
 * **Project Docs:** [https://agile-navigator.gitbook.io/docs](https://agile-navigator.gitbook.io/docs)
 
