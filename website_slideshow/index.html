@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Self-Balancing Robot Presentation</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar" aria-label="Presentation controls">
+      <a class="brand" href="#slide-1" aria-label="Go to title slide">
+        <span class="brand-mark"></span>
+        <span>Self-Balancing Robot</span>
+      </a>
+      <nav class="thumbs" aria-label="Slide list">
+        <button type="button" data-goto="0" aria-label="Slide 1"></button>
+        <button type="button" data-goto="1" aria-label="Slide 2"></button>
+        <button type="button" data-goto="2" aria-label="Slide 3"></button>
+        <button type="button" data-goto="3" aria-label="Slide 4"></button>
+        <button type="button" data-goto="4" aria-label="Slide 5"></button>
+        <button type="button" data-goto="5" aria-label="Slide 6"></button>
+        <button type="button" data-goto="6" aria-label="Slide 7"></button>
+        <button type="button" data-goto="7" aria-label="Slide 8"></button>
+        <button type="button" data-goto="8" aria-label="Slide 9"></button>
+        <button type="button" data-goto="9" aria-label="Slide 10"></button>
+        <button type="button" data-goto="10" aria-label="Slide 11"></button>
+        <button type="button" data-goto="11" aria-label="Slide 12"></button>
+      </nav>
+      <div class="controls">
+        <button class="icon-button" type="button" id="prevSlide" aria-label="Previous slide" title="Previous slide">&lt;</button>
+        <span class="counter" aria-live="polite"><span id="slideNow">01</span>/<span id="slideTotal">12</span></span>
+        <button class="icon-button" type="button" id="nextSlide" aria-label="Next slide" title="Next slide">&gt;</button>
+      </div>
+    </header>
+
+    <main class="deck" id="deck">
+      <section class="slide hero" id="slide-1" data-title="Title">
+        <img src="../.gitbook/assets/IMG_3294.JPG" alt="Physical prototype and CAD model of the two-wheeled self-balancing robot" />
+        <div class="hero-shade"></div>
+        <div class="hero-copy">
+          <p class="eyebrow">ROB-GY 5103 - Mechatronics</p>
+          <h1>Two-Wheeled Self-Balancing Robot with Wi-Fi Joystick Control</h1>
+          <p class="lede">An STM32H7-based inverted-pendulum platform integrating IMU sensing, motor communication, real-time balance control, telemetry, and a mobile joystick interface.</p>
+          <p class="meta">Team: Sammy Suliman, Albert / Yuyang Huang - Spring 2026</p>
+        </div>
+      </section>
+
+      <section class="slide split" id="slide-2" data-title="Objective">
+        <div class="copy">
+          <p class="eyebrow">Design Objective</p>
+          <h2>Build a real electromechanical control system, not just a spinning-wheel demo.</h2>
+          <p>The project turns a deliberately unstable two-wheel body into a robotics platform that can sense pitch, command motors, observe power, accept user input, and support repeatable tuning.</p>
+          <div class="stat-row" aria-label="Project highlights">
+            <div><strong>15</strong><span>report pages</span></div>
+            <div><strong>~$300</strong><span>prototype cost</span></div>
+            <div><strong>38400</strong><span>motor baud</span></div>
+          </div>
+        </div>
+        <div class="objective-board">
+          <div class="objective-item accent-green">Rigid two-wheel chassis</div>
+          <div class="objective-item accent-yellow">STM32H7 firmware bring-up</div>
+          <div class="objective-item accent-red">M0603A motor commands</div>
+          <div class="objective-item accent-cyan">IMU attitude estimation</div>
+          <div class="objective-item accent-purple">ADC Vbus telemetry</div>
+          <div class="objective-item accent-orange">ESP32-S3 joystick control</div>
+        </div>
+      </section>
+
+      <section class="slide" id="slide-3" data-title="Architecture">
+        <div class="slide-head">
+          <p class="eyebrow">System Architecture</p>
+          <h2>Subsystems were brought up one at a time, then merged into the balancing stack.</h2>
+        </div>
+        <div class="architecture" aria-label="System architecture diagram">
+          <div class="node power">Battery + switch board<br /><span>Vbus, enable GPIO, charger workflow</span></div>
+          <div class="node controller">STM32H7 controller<br /><span>HAL, DMA, SPI, UART, FreeRTOS</span></div>
+          <div class="node sensor">BMI088 IMU + ADC<br /><span>pitch, angular rate, voltage</span></div>
+          <div class="node motor">M0603A wheel motors<br /><span>half-duplex inverted UART</span></div>
+          <div class="node ui">ESP32-S3 joystick<br /><span>speed and turn references</span></div>
+          <div class="wire wire-a"></div>
+          <div class="wire wire-b"></div>
+          <div class="wire wire-c"></div>
+          <div class="wire wire-d"></div>
+        </div>
+      </section>
+
+      <section class="slide split" id="slide-4" data-title="Control Loop">
+        <div class="copy">
+          <p class="eyebrow">Technical Background</p>
+          <h2>The robot is an inverted pendulum on wheels.</h2>
+          <p>Because the center of mass sits above the wheel axle, the body falls unless the controller keeps moving the support point underneath it. The minimum loop is fast and unforgiving.</p>
+        </div>
+        <ol class="loop" aria-label="Balance control loop">
+          <li><span>1</span>Measure pitch and angular velocity</li>
+          <li><span>2</span>Estimate robot state from IMU data</li>
+          <li><span>3</span>Compute wheel torque or speed command</li>
+          <li><span>4</span>Send commands to both motor drivers</li>
+          <li><span>5</span>Repeat at real-time control rate</li>
+        </ol>
+      </section>
+
+      <section class="slide" id="slide-5" data-title="Electrical">
+        <div class="slide-head">
+          <p class="eyebrow">Electrical Components</p>
+          <h2>The electronics stack combines control, sensing, motor actuation, debug, and power.</h2>
+        </div>
+        <div class="component-grid">
+          <article><h3>STM32H7</h3><p>Main controller for FreeRTOS tasks, SPI, ADC, UART, DMA, motor links, and telemetry.</p></article>
+          <article><h3>BMI088 IMU</h3><p>Provides attitude data for body pitch and angular rate estimation.</p></article>
+          <article><h3>M0603A Motors</h3><p>Wheel actuation via serial command frames and later feedback experiments.</p></article>
+          <article><h3>ADC Vbus</h3><p>Supply monitoring through an 11x divider and DMA-backed ADC samples.</p></article>
+          <article><h3>OLED / RGB LED</h3><p>Bring-up indicators and peripheral exercises on the STM32L475 and H7 stacks.</p></article>
+          <article><h3>Battery System</h3><p>LiPo pack, switch board, XT connectors, charger experiments, and power-enable lines.</p></article>
+        </div>
+      </section>
+
+      <section class="slide split" id="slide-6" data-title="Motor Links">
+        <div class="copy">
+          <p class="eyebrow">Motor Communication</p>
+          <h2>The key electrical pivot was abandoning the unreliable converter path.</h2>
+          <p>The team learned that a board can transmit commands and still fail at feedback because voltage levels, idle state, direction, and timing must work both ways. The later design uses STM32 half-duplex UART with TX/RX inversion.</p>
+        </div>
+        <div class="code-card" aria-label="Motor UART configuration summary">
+          <pre><code>UART7 / USART10
+baud: 38400
+mode: half-duplex
+signal: TX/RX inversion
+transport: DMA RX + DMA TX
+purpose: left/right motor links</code></pre>
+        </div>
+      </section>
+
+      <section class="slide split image-slide" id="slide-7" data-title="Mechanical">
+        <div class="copy">
+          <p class="eyebrow">Mechanical Design</p>
+          <h2>Mechanical layout became part of the control problem.</h2>
+          <p>For a balancing robot, flex, loose mounts, connector strain, and a shifting battery all change the controller's job. The prototype keeps the motor boards, battery, switch board, and wiring accessible for rework during tuning.</p>
+          <ul class="plain-list">
+            <li>Rigid motor mounting and symmetric wheel alignment</li>
+            <li>Battery placement near the balancing axis</li>
+            <li>Clearance for forward/backward pitch during tuning</li>
+            <li>Serviceable wiring and insulated XT connections</li>
+          </ul>
+        </div>
+        <figure class="photo-frame">
+          <img src="../.gitbook/assets/IMG_3295.JPG" alt="Self-balancing robot prototype wiring and chassis detail" />
+          <figcaption>Physical prototype detail from repository documentation.</figcaption>
+        </figure>
+      </section>
+
+      <section class="slide" id="slide-8" data-title="Firmware">
+        <div class="slide-head">
+          <p class="eyebrow">Software Architecture</p>
+          <h2>CubeMX initialization hands off to a task-based FreeRTOS control stack.</h2>
+        </div>
+        <div class="task-layout">
+          <div class="boot-sequence">
+            <h3>Bring-up order</h3>
+            <p>HAL, clocks, GPIO, DMA, SPI, USART, ADC, DWT timing, BMI088 init, UART logging, VOFA telemetry, FreeRTOS objects, scheduler.</p>
+          </div>
+          <div class="task-card realtime"><strong>INS_TASK</strong><span>INS_task()</span><em>realtime priority</em></div>
+          <div class="task-card balance"><strong>BALANCE_TASK</strong><span>Balance_Task()</span><em>above normal priority</em></div>
+          <div class="task-card log"><strong>UART1_LOG_TASK</strong><span>UART1_LogTask()</span><em>low priority</em></div>
+          <div class="task-card default"><strong>defaultTask</strong><span>osDelay loop</span><em>normal priority</em></div>
+        </div>
+      </section>
+
+      <section class="slide split" id="slide-9" data-title="Joystick">
+        <div class="copy">
+          <p class="eyebrow">Wi-Fi Joystick Layer</p>
+          <h2>User commands belong outside the inner balance loop.</h2>
+          <p>The ESP32-S3 web joystick is meant to provide speed and turning references. Those references should bias the balance controller, while the STM32H7 remains responsible for keeping the body upright.</p>
+        </div>
+        <div class="phone" aria-label="Joystick interface mockup">
+          <div class="phone-top"></div>
+          <div class="joystick-area">
+            <div class="joystick-ring"><div class="joystick-knob"></div></div>
+          </div>
+          <div class="phone-status">
+            <span>speed ref</span>
+            <span>turn ref</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" id="slide-10" data-title="Testing">
+        <div class="slide-head">
+          <p class="eyebrow">Testing and Results</p>
+          <h2>The project advanced through staged bring-up and useful failures.</h2>
+        </div>
+        <div class="timeline">
+          <div><time>Jan 31</time><p>Oscilloscope verified motor-control signal; first Vlink motor rotation.</p></div>
+          <div><time>Feb 7</time><p>Signal-conversion boards soldered and motor rotation tested.</p></div>
+          <div><time>Feb 13</time><p>STM32 environment configured; OLED wiring established on L475.</p></div>
+          <div><time>Feb 21</time><p>RTOS, SPI-DMA, UART, ADC voltage, and RGB LED experiments completed.</p></div>
+          <div><time>Feb 28</time><p>Switch board, XT connectors, charger workflow, and open-drain tests advanced.</p></div>
+          <div><time>Mar 7-11</time><p>Motor control, ADC Vbus, UART motor work, feedback, and wiring tests continued.</p></div>
+        </div>
+      </section>
+
+      <section class="slide split" id="slide-11" data-title="Cost">
+        <div class="copy">
+          <p class="eyebrow">Cost Analysis</p>
+          <h2>The prototype lands around a realistic small-robot budget.</h2>
+          <p>The report estimates roughly $300, with most of the budget concentrated in motors, control boards, battery hardware, and mechanical/debug support.</p>
+        </div>
+        <div class="bars" aria-label="Approximate cost breakdown">
+          <div style="--bar: 40%"><span>STM32 boards</span><strong>$95-140</strong></div>
+          <div style="--bar: 46%"><span>M0603A motors/drivers</span><strong>$80-120</strong></div>
+          <div style="--bar: 30%"><span>Battery and switch system</span><strong>$40-70</strong></div>
+          <div style="--bar: 20%"><span>Signal conversion / PCBs</span><strong>$20-40</strong></div>
+          <div style="--bar: 18%"><span>ESP32-S3 interface</span><strong>$10-25</strong></div>
+          <div style="--bar: 24%"><span>Wiring, standoffs, printing</span><strong>$40-80</strong></div>
+        </div>
+      </section>
+
+      <section class="slide final-slide" id="slide-12" data-title="Next Steps">
+        <div class="final-copy">
+          <p class="eyebrow">Final Remarks</p>
+          <h2>The strongest result is the full-system integration path.</h2>
+          <p>The work captured real mechatronics lessons: level shifting assumptions, CubeMX regeneration risk, low-speed motor behavior, power-source behavior, wiring mistakes, and the need for logged tuning data.</p>
+        </div>
+        <div class="recommendations">
+          <article><span>01</span><p>Select one authoritative release folder and archive historical versions.</p></article>
+          <article><span>02</span><p>Add a clean wiring diagram with connector pinouts for motor links, SPI IMU, ADC Vbus, debug UART, and ESP32-S3.</p></article>
+          <article><span>03</span><p>Log pitch, angular velocity, wheel command, motor feedback, and Vbus at a fixed rate.</p></article>
+          <article><span>04</span><p>Add a safety state machine: disarmed, armed, balancing, fault, recovery.</p></article>
+          <article><span>05</span><p>Document the final gains and the tuning symptom each gain affected.</p></article>
+        </div>
+      </section>
+    </main>
+
+    <div class="progress" aria-hidden="true"><span id="progressBar"></span></div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
