@@ -4,6 +4,8 @@ Built and documented by **Yuyang Huang**
 
 <figure><img src=".gitbook/assets/IMG_3294.JPG" alt=""><figcaption><p>Physical prototype (left) and CAD model (right) of the two-wheeled self-balancing robot.</p></figcaption></figure>
 
+<figure><img src=".gitbook/assets/d40ac61c-da96-4f73-bd06-33e8b9314727.png" alt=""><figcaption><p>System-level circuit diagram showing the STM32H723 controller, M6 wheel motors, 24 V battery power path, ESP32-CAM Wi-Fi joystick interface, UART connections, and SWD debugging link.</p></figcaption></figure>
+
 ### Quick Links
 
 * **Demo video:** [https://vimeo.com/1187837796](https://vimeo.com/1187837796)
@@ -132,7 +134,7 @@ Lare added here so recruiters can verify the robot quickly:
 
 <figure><img src=".gitbook/assets/IMG_3295.JPG" alt=""><figcaption></figcaption></figure>
 
-<figure><img src=".gitbook/assets/IMG_3296 (1).JPG" alt=""><figcaption></figcaption></figure>
+<figure><img src=".gitbook/assets/IMG_3296.JPG" alt=""><figcaption></figcaption></figure>
 
 ### If you are reviewing this for robotics experience
 
@@ -162,4 +164,3 @@ Planned improvements for this repository:
 If you are a recruiter or engineer reviewing this project and would like a short walkthrough of the architecture and my exact contributions, feel free to reach out.
 
 **Author:** Yuyang Huang
-
